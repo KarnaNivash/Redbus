@@ -8,14 +8,14 @@ def get_routes_and_seat_types_from_sql(state):
         # Connect to SQL Server
         connection = pyodbc.connect(
             "Driver={ODBC Driver 17 for SQL Server};"
-            "Server=localhost\SQLEXPRESS;"  # Replace with your server name
-            "Database=BusDetails;"  # Replace with your database name
-            "UID=sa;"  # Replace with your username
-            "PWD=123;"  # Replace with your password
+            "Server=localhost\SQLEXPRESS;"
+            "Database=BusDetails;"
+            "UID=sa;"
+            "PWD=123;"
         )
         cursor = connection.cursor()
         
-        # Query to fetch distinct states (for the state dropdown)
+        # Query to fetch distinct states
         state_query = "SELECT DISTINCT State_name FROM RedBus_BusDetails"
         cursor.execute(state_query)
         states = [row[0] for row in cursor.fetchall()]
@@ -27,7 +27,6 @@ def get_routes_and_seat_types_from_sql(state):
         Departing_Time = []
         price = []
 
-        # If a state is selected, fetch routes and seat types for that state
         if state:
             # Fetch routes for the selected state
             routes_query = "SELECT DISTINCT Route_Name FROM RedBus_BusDetails WHERE State_name = ? ORDER BY 1 DESC"
@@ -47,8 +46,6 @@ def get_routes_and_seat_types_from_sql(state):
         st.error(f"Error fetching data: {e}")
         return [], [], [], [], [], []
 
-
-# Fetch detailed bus information based on filters
 # Fetch detailed bus information based on filters
 def get_bus_details(state, route, seat_type, Star_Rating, Departing_Time, price):
     try:
@@ -62,14 +59,13 @@ def get_bus_details(state, route, seat_type, Star_Rating, Departing_Time, price)
         )
         cursor = connection.cursor()
 
-        # Start building the query
         query = """
         SELECT Route_Name, Bus_type, State_name, Departing_Time, Reaching_Time, Price, Star_Rating, Seat_Availability, Duration
         FROM RedBus_BusDetails
         WHERE State_name = ?
         """
         
-        params = [state]  # Start with the state parameter
+        params = [state]
 
         # Add route filter
         if route != "Select":
@@ -97,35 +93,29 @@ def get_bus_details(state, route, seat_type, Star_Rating, Departing_Time, price)
             elif float(Star_Rating) <= 5:
                 query += " AND Star_Rating BETWEEN 4.1 AND 5.0"
 
-        # Add departing time filter for 24-hour format
+        # Add departing time
         if Departing_Time != "Select":
-            if Departing_Time == '00:00 - 12:00':  # For first 12 hours (AM)
+            if Departing_Time == '00:00 - 12:00':
                 query += " AND Departing_Time BETWEEN '00:00' AND '12:00'"
-            elif Departing_Time == '12:01 - 23:59':  # For remaining hours (PM)
+            elif Departing_Time == '12:01 - 23:59':
                 query += " AND Departing_Time BETWEEN '12:01' AND '23:59'"
 
         # Add price filter
         if price != "Select":
-            if price == '1000':  # For first price range
+            if price == '1000':
                 query += " AND Price BETWEEN 0 AND 1000"
-            elif price == '2000':  # For second price range
+            elif price == '2000':
                 query += " AND Price BETWEEN 1001 AND 2000"
-            elif price == '3000':  # For third price range
+            elif price == '3000':
                 query += " AND Price BETWEEN 2001 AND 3000"
 
         # Execute query
         cursor.execute(query, tuple(params))
         data = cursor.fetchall()
 
-        # If no data found, return an empty DataFrame
-        #if not data:
-        #    st.warning("No buses found for the selected filters.")
-        #    return pd.DataFrame()
-
         # Process the data to convert the raw string to a tuple
         parsed_data = []
         for row in data:
-            # Extract the tuple from the string format
             route_name = row[0]
             bus_type = row[1]
             state_name = row[2]
@@ -133,7 +123,7 @@ def get_bus_details(state, route, seat_type, Star_Rating, Departing_Time, price)
             Reaching_Time = row[4]
             price = row[5]
             star_rating = row[6]
-            seat_availability = row[7]  # Add Seat_Availability here
+            seat_availability = row[7]
             Duration = row[8]
             parsed_data.append([route_name, bus_type, state_name, departing_time,Reaching_Time, price, star_rating, seat_availability, Duration])
 
@@ -148,7 +138,7 @@ def get_bus_details(state, route, seat_type, Star_Rating, Departing_Time, price)
 
     except Exception as e:
         st.error(f"Error fetching bus details: {e}")
-        return pd.DataFrame()  # Return empty DataFrame on error
+        return pd.DataFrame()
 
 # App Title
 st.markdown('<h1 style="color:red; font-size:2.25em; font-weight:600; margin-bottom:0.8rem;">Red Bus</h1>', unsafe_allow_html=True)
@@ -174,38 +164,33 @@ elif option == "Booking":
    
     # Fetch available states and related data
     with st.spinner('Fetching data...'):
-        states, routes, seat_types, Star_Rating, Departing_Time, price = get_routes_and_seat_types_from_sql(None)  # Fetch all states
-    state = st.selectbox('State:', ['Select'] + states)  # "Select" as the placeholder
+        states, routes, seat_types, Star_Rating, Departing_Time, price = get_routes_and_seat_types_from_sql(None)
+    state = st.selectbox('State:', ['Select'] + states)
 
-    if state != "Select":  # Only proceed if a state is selected
+    if state != "Select":
         with st.spinner('Loading routes and seat types...'):
-            _, routes, seat_types, _, _, _ = get_routes_and_seat_types_from_sql(state)  # Correct unpacking with all 6 values
+            _, routes, seat_types, _, _, _ = get_routes_and_seat_types_from_sql(state)
 
         if routes:
-            # 2nd row with Route and Seat Type
             col1, col2 = st.columns(2)
 
             with col1:
                 route = st.selectbox('Route:', ['Select'] + routes)
 
-            # Seat Type limited to "Seater" and "Sleeper"
             with col2:
                 seat_type = st.selectbox('Seat Type:', ['Select', 'Seater A/C', 'Seater Non A/C', 'Sleeper A/C', 'Sleeper  Non A/C'])
 
-            # Additional dropdowns for Rating, Bus Starting Time, and Price in a single section
             col3, col4 = st.columns(2)
 
             with col3:
                 Star_Rating = st.selectbox('Star_Rating (1 to 5):', ['Select', '1', '2', '3', '4', '5'])
 
-            # Updated Bus Starting Time dropdown with fixed options
             with col4:
                 Departing_Time = st.selectbox(
                     'Bus Starting Time:',
                     ['Select', '00:00 - 12:00', '12:01 - 23:59']
                 )
 
-            # Price filter
             price = st.selectbox('Price (Below):', ['Select', '1000', '2000', '3000'])
 
             # Search Button
@@ -215,11 +200,11 @@ elif option == "Booking":
                     bus_details_df = get_bus_details(state, route, seat_type, Star_Rating, Departing_Time, price)
                     
                     if not bus_details_df.empty:
-                        st.dataframe(bus_details_df)  # Display the table with bus details
+                        st.dataframe(bus_details_df)
                     else:
                         st.warning("No buses found for the selected filters.")
         else:
-            st.error(f"No routes available for {state}. Please check the database connection or data.")
+            st.error(f"No routes available for {state}.")
     else:
         st.write("Please select a state to view the available routes and seat types.")
 
